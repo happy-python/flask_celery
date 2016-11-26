@@ -1,0 +1,74 @@
+<html>
+<head>
+    <title>Flask + Celery</title>
+</head>
+<body>
+<h1>Flask + Celery Examples</h1>
+
+<h2>异步发送邮件</h2>
+{% for message in get_flashed_messages() %}
+    <p style="color: red;">{{ message }}</p>
+{% endfor %}
+<form method="POST" action="{{ url_for('index') }}">
+    <p>Send test email to: <input type="text" name="email" value="{{ email }}"></p>
+    <input type="submit" name="submit" value="Send">
+    <input type="submit" name="submit" value="Send in 1 minute">
+</form>
+<hr>
+<h2>显示进度更新和结果</h2>
+<button id="start-bg-job">Start Long Task</button>
+<br><br>
+<div id="progress" style="width: auto;text-align: center;"></div>
+
+<script src="//cdn.bootcss.com/nanobar/0.4.2/nanobar.min.js"></script>
+<script src="//cdn.bootcss.com/jquery/3.1.1/jquery.min.js"></script>
+<script>
+    function start_long_task() {
+        // 添加任务状态元素
+        var div = $('<div class="progress"><div></div><div>0%</div><div></div></div><hr>');
+        $('#progress').append(div);
+
+        // 创建进度条（progress bar）
+        var nanobar = new Nanobar({
+            target: div[0].childNodes[0]
+        });
+
+        // 向后台发送请求开启任务
+        var longTask = $.get('/longtask');
+        longTask.done(function (data, status, request) {
+            status_url = request.getResponseHeader('Location');
+            update_progress(status_url, nanobar, div[0]);
+        });
+    }
+
+    function update_progress(status_url, nanobar, status_div) {
+        // 获取状态信息
+        $.getJSON(status_url, function (data) {
+            // 更新进度
+            percent = parseInt(data['current'] * 100 / data['total']);
+            nanobar.go(percent);
+            $(status_div.childNodes[1]).text('当前进度: ' + percent + '%');
+
+            // 轮询
+            if (data['state'] == 'PENDING' || data['state'] == '处理中') {
+                setTimeout(function () {
+                    update_progress(status_url, nanobar, status_div);
+                }, 2000);
+            }
+            // 更新结果
+            if ('result' in data) {
+                // 处理完成
+                $(status_div.childNodes[2]).text('当前结果: ' + data['result']);
+            }
+            else {
+                // 处理中
+                $(status_div.childNodes[2]).text('当前结果: ' + data['state']);
+            }
+        });
+    }
+
+    $('button').on('click', start_long_task);
+
+</script>
+</body>
+</html>
